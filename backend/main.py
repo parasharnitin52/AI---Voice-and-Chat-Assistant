@@ -75,11 +75,20 @@ async def transcribe(
         raise HTTPException(400, "File must be an audio file.")
 
     audio_bytes = await audio.read()
+    print(f"[DEBUG] Received audio file: {audio.filename}, Content-Type: {audio.content_type}, Size: {len(audio_bytes)} bytes")
     if len(audio_bytes) < 100:
         raise HTTPException(400, "Audio file is too short or empty.")
 
-    result = transcribe_audio(audio_bytes, filename=audio.filename or "audio.webm")
-    return TranscribeResponse(**result)
+    try:
+        result = transcribe_audio(audio_bytes, filename=audio.filename or "audio.webm")
+        return TranscribeResponse(**result)
+    except Exception as e:
+        import logging
+        logging.error(f"Transcription failed: {e}")
+        # Try to extract message if it's a Groq APIStatusError
+        detail = getattr(e, "message", str(e))
+        status_code = getattr(e, "status_code", 400)
+        raise HTTPException(status_code=status_code, detail=f"STT Error: {detail}")
 
 
 # ─────────────────────────────────────────────
@@ -151,7 +160,14 @@ async def chat(
     llm_messages.append({"role": "user", "content": full_text})
 
     # ── 6. Call Groq LLaMA ─────────────────────
-    ai_response = chat_completion(llm_messages, system_prompt)
+    try:
+        ai_response = chat_completion(llm_messages, system_prompt)
+    except Exception as e:
+        import logging
+        logging.error(f"Chat completion failed: {e}")
+        detail = getattr(e, "message", str(e))
+        status_code = getattr(e, "status_code", 400)
+        raise HTTPException(status_code=status_code, detail=f"LLM Error: {detail}")
 
     # ── 7. Update session history ──────────────
     now = datetime.utcnow().isoformat()

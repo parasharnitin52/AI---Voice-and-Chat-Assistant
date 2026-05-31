@@ -28,7 +28,7 @@ def transcribe_audio(audio_bytes: bytes, filename: str = "audio.webm") -> dict:
     audio_file.name = filename
 
     transcription = client.audio.transcriptions.create(
-        file=(filename, audio_file),
+        file=(filename, audio_file, "audio/webm"),
         model=settings.whisper_model,
         response_format="verbose_json",
     )
