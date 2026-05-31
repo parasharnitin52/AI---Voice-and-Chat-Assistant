@@ -43,10 +43,17 @@ export interface TicketResponse {
   created_at: string;
 }
 
-// ── Transcribe Audio ────────────────────────────
-export async function transcribeAudio(blob: Blob): Promise<TranscribeResponse> {
+export async function transcribeAudio(blob: Blob, language?: string): Promise<TranscribeResponse> {
   const form = new FormData();
-  form.append("audio", blob, "audio.webm");
+  const extension = blob.type.includes("mp4")
+    ? "m4a"
+    : blob.type.includes("ogg")
+      ? "ogg"
+      : "webm";
+  form.append("audio", blob, `audio.${extension}`);
+  if (language) {
+    form.append("language", language);
+  }
   const res = await fetch(`${API_URL}/api/transcribe`, {
     method: "POST",
     body: form,
@@ -63,7 +70,9 @@ export async function sendChat(
   sessionId: string,
   message: string,
   customerName?: string,
-  phoneNumber?: string
+  phoneNumber?: string,
+  productOverride?: string,
+  languageOverride?: string
 ): Promise<ChatResponse> {
   const res = await fetch(`${API_URL}/api/chat`, {
     method: "POST",
@@ -73,6 +82,8 @@ export async function sendChat(
       message,
       customer_name: customerName,
       phone_number: phoneNumber,
+      product_override: productOverride,
+      language_override: languageOverride,
     }),
   });
   if (!res.ok) {

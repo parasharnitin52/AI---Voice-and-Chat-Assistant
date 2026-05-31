@@ -9,10 +9,25 @@ interface Props {
   isProcessing?: boolean;
 }
 
+const MIN_RECORDING_MS = 900;
+
+function getSupportedMimeType(): string {
+  const candidates = [
+    "audio/webm;codecs=opus",
+    "audio/webm",
+    "audio/mp4",
+    "audio/ogg;codecs=opus",
+  ];
+
+  return candidates.find((type) => MediaRecorder.isTypeSupported(type)) || "";
+}
+
 export default function VoiceButton({ onAudioReady, disabled, isProcessing }: Props) {
   const [isRecording, setIsRecording] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const streamRef = useRef<MediaStream | null>(null);
+  const recordingStartedAtRef = useRef(0);
 
   const isRecordingRequested = useRef(false);
 
@@ -27,23 +42,31 @@ export default function VoiceButton({ onAudioReady, disabled, isProcessing }: Pr
         return;
       }
 
-      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-        ? "audio/webm;codecs=opus"
-        : "audio/webm";
-      const recorder = new MediaRecorder(stream, { mimeType });
+      const mimeType = getSupportedMimeType();
+      const recorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream);
       chunksRef.current = [];
+      streamRef.current = stream;
+      recordingStartedAtRef.current = Date.now();
 
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) chunksRef.current.push(e.data);
       };
 
       recorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: mimeType });
-        onAudioReady(blob);
+        const type = recorder.mimeType || mimeType || "audio/webm";
+        const blob = new Blob(chunksRef.current, { type });
+        const durationMs = Date.now() - recordingStartedAtRef.current;
+        if (durationMs >= MIN_RECORDING_MS && blob.size > 0) {
+          onAudioReady(blob);
+        }
         stream.getTracks().forEach((t) => t.stop());
+        streamRef.current = null;
+        mediaRecorderRef.current = null;
       };
 
-      recorder.start(100);
+      recorder.start(250);
       mediaRecorderRef.current = recorder;
       setIsRecording(true);
     } catch (err) {
@@ -56,8 +79,24 @@ export default function VoiceButton({ onAudioReady, disabled, isProcessing }: Pr
 
   const stopRecording = useCallback(() => {
     isRecordingRequested.current = false;
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
-      mediaRecorderRef.current.stop();
+    const recorder = mediaRecorderRef.current;
+    if (recorder && recorder.state === "recording") {
+      const elapsedMs = Date.now() - recordingStartedAtRef.current;
+      const stop = () => {
+        if (recorder.state === "recording") {
+          recorder.requestData();
+          recorder.stop();
+        }
+      };
+
+      if (elapsedMs < MIN_RECORDING_MS) {
+        window.setTimeout(stop, MIN_RECORDING_MS - elapsedMs);
+      } else {
+        stop();
+      }
+    } else {
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
     }
     setIsRecording(false);
   }, []);
@@ -72,7 +111,7 @@ export default function VoiceButton({ onAudioReady, disabled, isProcessing }: Pr
 
   const handlePointerUp = (e: React.PointerEvent<HTMLButtonElement>) => {
     e.preventDefault();
-    if (isRecording) {
+    if (isRecording || isRecordingRequested.current) {
       try {
         e.currentTarget.releasePointerCapture(e.pointerId);
       } catch (err) {
@@ -84,7 +123,7 @@ export default function VoiceButton({ onAudioReady, disabled, isProcessing }: Pr
 
   const handlePointerCancel = (e: React.PointerEvent<HTMLButtonElement>) => {
     e.preventDefault();
-    if (isRecording) {
+    if (isRecording || isRecordingRequested.current) {
       try {
         e.currentTarget.releasePointerCapture(e.pointerId);
       } catch (err) {
