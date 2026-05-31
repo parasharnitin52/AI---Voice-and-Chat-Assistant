@@ -30,6 +30,8 @@ class ChatRequest(BaseModel):
     message: str
     customer_name: Optional[str] = None
     phone_number: Optional[str] = None
+    product_override: Optional[str] = None
+    language_override: Optional[str] = None
 
 
 class ChatResponse(BaseModel):

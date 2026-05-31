@@ -25,12 +25,60 @@ export default function HomePage() {
   const [productDetected, setProductDetected] = useState("unknown");
   const [intentDetected, setIntentDetected] = useState<string | undefined>();
   const [languageDetected, setLanguageDetected] = useState("english");
+  const [manualProduct, setManualProduct] = useState<string | null>(null);
+  const [manualLanguage, setManualLanguage] = useState<string | null>(null);
   const [suggestTicket, setSuggestTicket] = useState(false);
   const [showTicketModal, setShowTicketModal] = useState(false);
   const [ticketSuccess, setTicketSuccess] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
   const speechRef = useRef<SpeechSynthesisUtterance | null>(null);
+
+  const handleProductSelect = (productKey: string) => {
+    setProductDetected(productKey);
+    setManualProduct(productKey);
+  };
+
+  const handleLanguageSelect = (langKey: string) => {
+    const lang = langKey.toLowerCase();
+    setLanguageDetected(lang);
+    setManualLanguage(lang);
+  };
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.speechSynthesis) return;
+
+    const loadVoices = () => {
+      setAvailableVoices(window.speechSynthesis.getVoices());
+    };
+
+    loadVoices();
+    window.speechSynthesis.onvoiceschanged = loadVoices;
+
+    return () => {
+      window.speechSynthesis.onvoiceschanged = null;
+    };
+  }, []);
+
+  const pickVoice = useCallback((lang: string) => {
+    const byLang = (prefix: string) =>
+      availableVoices.filter((voice) => voice.lang.toLowerCase().startsWith(prefix));
+    const preferNatural = (voices: SpeechSynthesisVoice[]) =>
+      voices.find((voice) => /google|microsoft|natural|online|heera|ravi/i.test(voice.name))
+      || voices.find((voice) => voice.localService)
+      || voices[0];
+
+    if (lang === "hindi") {
+      return preferNatural(byLang("hi"));
+    }
+
+    if (lang === "hinglish") {
+      return preferNatural(byLang("en-in")) || preferNatural(byLang("hi")) || preferNatural(byLang("en"));
+    }
+
+    return preferNatural(byLang("en-in")) || preferNatural(byLang("en-us")) || preferNatural(byLang("en"));
+  }, [availableVoices]);
 
   // ── Text-to-speech ──────────────────────────────────────────────
   const speak = useCallback((text: string, lang: string) => {
@@ -38,19 +86,19 @@ export default function HomePage() {
     window.speechSynthesis.cancel();
 
     const utter = new SpeechSynthesisUtterance(text);
-    utter.rate = 0.95;
-    utter.pitch = 1.05;
+    utter.rate = 0.9;
+    utter.pitch = 1;
     utter.volume = 1;
 
-    // Set voice language
-    const voices = window.speechSynthesis.getVoices();
-    if (lang === "hindi" || lang === "hinglish") {
-      const hindiVoice = voices.find((v) => v.lang.startsWith("hi"));
-      if (hindiVoice) utter.voice = hindiVoice;
+    if (lang === "hindi") {
+      utter.lang = "hi-IN";
+    } else if (lang === "hinglish") {
+      utter.lang = "en-IN";
     } else {
-      const enVoice = voices.find((v) => v.lang.startsWith("en") && v.name.includes("Google"));
-      if (enVoice) utter.voice = enVoice;
+      utter.lang = "en-IN";
     }
+    const voice = pickVoice(lang);
+    if (voice) utter.voice = voice;
 
     utter.onstart = () => { setIsSpeaking(true); setStatus("speaking"); setStatusText("Speaking…"); };
     utter.onend = () => { setIsSpeaking(false); setStatus("idle"); setStatusText(""); };
@@ -58,7 +106,7 @@ export default function HomePage() {
 
     speechRef.current = utter;
     window.speechSynthesis.speak(utter);
-  }, []);
+  }, [pickVoice]);
 
   const stopSpeaking = () => {
     window.speechSynthesis?.cancel();
@@ -73,9 +121,9 @@ export default function HomePage() {
     setTranscript("");
 
     // Prevent sending tiny/empty files (e.g. accidental clicks)
-    if (blob.size < 4000) {
+    if (blob.size < 3000) {
       setStatus("idle");
-      setErrorMsg("Please hold the button and speak clearly.");
+      setErrorMsg("Please hold the button for at least one second and speak clearly.");
       return;
     }
 
@@ -83,7 +131,7 @@ export default function HomePage() {
       // Step 1: Transcribe
       setStatus("transcribing");
       setStatusText("Transcribing your voice…");
-      const tResult = await transcribeAudio(blob);
+      const tResult = await transcribeAudio(blob, manualLanguage || undefined);
       const userText = tResult.transcript;
 
       if (!userText.trim()) {
@@ -98,7 +146,14 @@ export default function HomePage() {
       // Step 2: Chat
       setStatus("thinking");
       setStatusText("AI is thinking…");
-      const chatResult = await sendChat(sessionId, userText);
+      const chatResult = await sendChat(
+        sessionId,
+        userText,
+        undefined,
+        undefined,
+        manualProduct || undefined,
+        manualLanguage || undefined
+      );
 
       setMessages(chatResult.conversation_history);
       setProductDetected(chatResult.product_detected);
@@ -116,7 +171,7 @@ export default function HomePage() {
       setStatusText("");
       setTimeout(() => setStatus("idle"), 3000);
     }
-  }, [sessionId, speak]);
+  }, [manualLanguage, manualProduct, sessionId, speak]);
 
   // ── Text input fallback ─────────────────────────────────────────
   const [textInput, setTextInput] = useState("");
@@ -129,7 +184,14 @@ export default function HomePage() {
     try {
       setStatus("thinking");
       setStatusText("AI is thinking…");
-      const chatResult = await sendChat(sessionId, msg);
+      const chatResult = await sendChat(
+        sessionId,
+        msg,
+        undefined,
+        undefined,
+        manualProduct || undefined,
+        manualLanguage || undefined
+      );
       setMessages(chatResult.conversation_history);
       setProductDetected(chatResult.product_detected);
       setIntentDetected(chatResult.intent_detected);
@@ -257,6 +319,7 @@ export default function HomePage() {
                 <div
                   key={p}
                   className={`${styles.productItem} ${productDetected === p ? styles.productActive : ""}`}
+                  onClick={() => handleProductSelect(p)}
                 >
                   <span className={styles.productEmoji}>{PRODUCT_ICONS[p]}</span>
                   <span className={styles.productName}>{PRODUCT_LABELS[p]}</span>
@@ -271,7 +334,11 @@ export default function HomePage() {
             <h3 className={styles.cardTitle}>Languages</h3>
             <div className={styles.langList}>
               {[["🇬🇧", "English"], ["🇮🇳", "Hindi"], ["🌐", "Hinglish"]].map(([flag, lang]) => (
-                <div key={lang} className={`${styles.langItem} ${languageDetected?.toLowerCase() === lang.toLowerCase() ? styles.langActive : ""}`}>
+                <div 
+                  key={lang} 
+                  className={`${styles.langItem} ${languageDetected?.toLowerCase() === lang.toLowerCase() ? styles.langActive : ""}`}
+                  onClick={() => handleLanguageSelect(lang)}
+                >
                   <span>{flag}</span> <span>{lang}</span>
                 </div>
               ))}

@@ -64,6 +64,7 @@ def health_check():
 @app.post("/api/transcribe", response_model=TranscribeResponse)
 async def transcribe(
     audio: UploadFile = File(...),
+    language: str | None = Form(None),
 ):
     """
     Accepts an audio file (webm/wav/mp3/ogg) and returns the transcript
@@ -75,12 +76,17 @@ async def transcribe(
         raise HTTPException(400, "File must be an audio file.")
 
     audio_bytes = await audio.read()
-    print(f"[DEBUG] Received audio file: {audio.filename}, Content-Type: {audio.content_type}, Size: {len(audio_bytes)} bytes")
-    if len(audio_bytes) < 100:
-        raise HTTPException(400, "Audio file is too short or empty.")
+    print(f"[DEBUG] Received audio file: {audio.filename}, Content-Type: {audio.content_type}, Size: {len(audio_bytes)} bytes, Language hint: {language}")
+    if len(audio_bytes) < 3000:
+        raise HTTPException(400, "Audio is too short. Please hold the mic and speak for at least one second.")
 
     try:
-        result = transcribe_audio(audio_bytes, filename=audio.filename or "audio.webm")
+        result = transcribe_audio(
+            audio_bytes,
+            filename=audio.filename or "audio.webm",
+            content_type=audio.content_type,
+            language_hint=language,
+        )
         return TranscribeResponse(**result)
     except Exception as e:
         import logging
@@ -88,6 +94,8 @@ async def transcribe(
         # Try to extract message if it's a Groq APIStatusError
         detail = getattr(e, "message", str(e))
         status_code = getattr(e, "status_code", 400)
+        if "could not process file" in detail.lower():
+            detail = "The recording was not a valid audio clip. Please hold the mic a little longer and try again."
         raise HTTPException(status_code=status_code, detail=f"STT Error: {detail}")
 
 
@@ -124,9 +132,21 @@ async def chat(
     )
     combined_text = f"{history_text} {full_text}"
 
-    product = detect_product(combined_text)
+    # Use manual overrides if provided, otherwise detect
+    if request.product_override and request.product_override != "unknown":
+        try:
+            product = DBProductType(request.product_override)
+        except ValueError:
+            product = DBProductType.unknown
+    else:
+        product = detect_product(combined_text)
+
     intent = detect_intent(full_text)
-    language = detect_language(full_text)
+
+    if request.language_override:
+        language = request.language_override.lower()
+    else:
+        language = detect_language(full_text)
 
     # Persist detections to session
     if product != DBProductType.unknown:
