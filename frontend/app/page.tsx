@@ -72,6 +72,13 @@ export default function HomePage() {
     setErrorMsg("");
     setTranscript("");
 
+    // Prevent sending tiny/empty files (e.g. accidental clicks)
+    if (blob.size < 4000) {
+      setStatus("idle");
+      setErrorMsg("Please hold the button and speak clearly.");
+      return;
+    }
+
     try {
       // Step 1: Transcribe
       setStatus("transcribing");

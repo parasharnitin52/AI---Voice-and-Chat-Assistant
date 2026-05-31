@@ -14,9 +14,19 @@ export default function VoiceButton({ onAudioReady, disabled, isProcessing }: Pr
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
 
+  const isRecordingRequested = useRef(false);
+
   const startRecording = useCallback(async () => {
     try {
+      isRecordingRequested.current = true;
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      
+      // If user released the button while we were getting user media, cancel!
+      if (!isRecordingRequested.current) {
+        stream.getTracks().forEach((t) => t.stop());
+        return;
+      }
+
       const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
         ? "audio/webm;codecs=opus"
         : "audio/webm";
@@ -39,23 +49,49 @@ export default function VoiceButton({ onAudioReady, disabled, isProcessing }: Pr
     } catch (err) {
       console.error("Microphone access denied:", err);
       alert("Please allow microphone access to use voice input.");
+      isRecordingRequested.current = false;
+      setIsRecording(false);
     }
   }, [onAudioReady]);
 
   const stopRecording = useCallback(() => {
-    if (mediaRecorderRef.current && isRecording) {
+    isRecordingRequested.current = false;
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
       mediaRecorderRef.current.stop();
-      setIsRecording(false);
     }
-  }, [isRecording]);
+    setIsRecording(false);
+  }, []);
 
-  const handlePointerDown = (e: React.PointerEvent) => {
+  const handlePointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
     e.preventDefault();
-    if (!disabled && !isProcessing) startRecording();
+    if (!disabled && !isProcessing) {
+      e.currentTarget.setPointerCapture(e.pointerId);
+      startRecording();
+    }
   };
-  const handlePointerUp = (e: React.PointerEvent) => {
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLButtonElement>) => {
     e.preventDefault();
-    if (isRecording) stopRecording();
+    if (isRecording) {
+      try {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      } catch (err) {
+        // ignore if already released
+      }
+      stopRecording();
+    }
+  };
+
+  const handlePointerCancel = (e: React.PointerEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    if (isRecording) {
+      try {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      } catch (err) {
+        // ignore
+      }
+      stopRecording();
+    }
   };
 
   const isActive = isRecording;
@@ -75,7 +111,7 @@ export default function VoiceButton({ onAudioReady, disabled, isProcessing }: Pr
         className={`${styles.btn} ${isActive ? styles.recording : ""} ${isProcessing ? styles.processing : ""}`}
         onPointerDown={handlePointerDown}
         onPointerUp={handlePointerUp}
-        onPointerLeave={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
         disabled={disabled || isProcessing}
         aria-label={isRecording ? "Release to send" : "Hold to speak"}
         id="voice-record-btn"
