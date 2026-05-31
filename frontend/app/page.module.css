@@ -1,0 +1,213 @@
+/* page.module.css */
+
+/* ── Page Layout ─────────────────────────── */
+.page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 20px 40px;
+}
+
+/* ── Header ──────────────────────────────── */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 0 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  margin-bottom: 24px;
+}
+
+.logo {
+  display: flex; align-items: center; gap: 10px;
+  font-family: 'Outfit', sans-serif;
+  font-size: 22px; color: #f1f5f9;
+}
+.logoIcon {
+  width: 38px; height: 38px;
+  background: linear-gradient(135deg, #6366f1, #a855f7);
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px;
+  box-shadow: 0 4px 16px rgba(99,102,241,0.4);
+}
+.logoText { font-weight: 400; }
+.logoText strong { font-weight: 800; }
+
+.headerRight { display: flex; align-items: center; gap: 12px; }
+.statusPill {
+  display: flex; align-items: center; gap: 7px;
+  padding: 6px 14px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 99px;
+  font-size: 12px; font-weight: 500; color: #94a3b8;
+}
+.dot { width: 7px; height: 7px; border-radius: 50%; }
+.green { background: #10b981; box-shadow: 0 0 8px rgba(16,185,129,0.6); }
+.amber { background: #f59e0b; box-shadow: 0 0 8px rgba(245,158,11,0.6); }
+.red   { background: #ef4444; box-shadow: 0 0 8px rgba(239,68,68,0.6); }
+
+/* ── Main Grid ───────────────────────────── */
+.main {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 20px;
+  flex: 1;
+  min-height: 0;
+  height: calc(100vh - 130px);
+}
+
+/* ── Chat Panel ──────────────────────────── */
+.chatPanel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* ── Transcript Banner ───────────────────── */
+.transcriptBanner {
+  padding: 10px 16px;
+  background: rgba(99,102,241,0.08);
+  border-top: 1px solid rgba(99,102,241,0.2);
+  display: flex; align-items: baseline; gap: 8px;
+  font-size: 13px; animation: fadeInUp 0.2s ease;
+}
+.transcriptLabel { color: #818cf8; font-weight: 600; white-space: nowrap; }
+.transcriptText  { color: #cbd5e1; font-style: italic; }
+
+/* ── Error Banner ────────────────────────── */
+.errorBanner {
+  padding: 10px 16px;
+  background: rgba(239,68,68,0.08);
+  border-top: 1px solid rgba(239,68,68,0.2);
+  font-size: 13px; color: #f87171;
+  animation: fadeInUp 0.2s ease;
+}
+
+/* ── Text Input Bar ──────────────────────── */
+.textBar {
+  display: flex; gap: 10px;
+  padding: 14px 16px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  background: rgba(255,255,255,0.02);
+}
+.textInput { flex: 1; }
+.sendBtn   { padding: 11px 18px; font-size: 16px; }
+
+/* ── Controls Sidebar ────────────────────── */
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow-y: auto;
+}
+
+/* ── Voice Card ──────────────────────────── */
+.voiceCard {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 16px;
+  padding: 28px 20px;
+  text-align: center;
+}
+.voiceTitle    { font-family: 'Outfit', sans-serif; font-size: 17px; font-weight: 700; color: #f1f5f9; }
+.voiceSubtitle { font-size: 12px; color: #64748b; margin-top: -10px; }
+
+.statusBar {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; color: #818cf8;
+  animation: fadeInUp 0.2s ease;
+}
+.statusSpinner {
+  width: 14px; height: 14px;
+  border: 2px solid rgba(99,102,241,0.3);
+  border-top-color: #6366f1;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Products Card ───────────────────────── */
+.productsCard { padding: 16px 18px; }
+.langCard     { padding: 16px 18px; }
+.cardTitle    { font-size: 12px; font-weight: 700; color: #64748b; letter-spacing: 0.6px; text-transform: uppercase; margin-bottom: 12px; }
+
+.productList { display: flex; flex-direction: column; gap: 8px; }
+.productItem {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  transition: all 0.2s;
+}
+.productActive {
+  background: rgba(99,102,241,0.12);
+  border-color: rgba(99,102,241,0.3);
+}
+.productEmoji { font-size: 20px; }
+.productName  { font-size: 13px; font-weight: 500; color: #cbd5e1; flex: 1; }
+.activeTag {
+  font-size: 10px; font-weight: 700;
+  padding: 2px 7px;
+  background: linear-gradient(135deg, #6366f1, #a855f7);
+  border-radius: 99px;
+  color: #fff;
+  letter-spacing: 0.4px;
+}
+
+.langList { display: flex; flex-direction: column; gap: 6px; }
+.langItem {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 12px;
+  border-radius: 8px;
+  font-size: 13px; color: #64748b;
+  border: 1px solid transparent;
+  transition: all 0.2s;
+}
+.langActive {
+  color: #22d3ee;
+  background: rgba(6,182,212,0.08);
+  border-color: rgba(6,182,212,0.2);
+}
+
+/* ── Ticket Banner ───────────────────────── */
+.ticketBanner {
+  padding: 16px;
+  border-color: rgba(99,102,241,0.25) !important;
+  animation: fadeInUp 0.3s ease;
+}
+.ticketBannerText {
+  font-size: 13px; color: #94a3b8;
+  margin-bottom: 12px; line-height: 1.5;
+}
+
+/* ── Ticket Success ──────────────────────── */
+.ticketSuccess {
+  padding: 16px;
+  background: rgba(16,185,129,0.08);
+  border: 1px solid rgba(16,185,129,0.25);
+  border-radius: 14px;
+  font-size: 13px; color: #34d399;
+  line-height: 1.6;
+  animation: fadeInUp 0.3s ease;
+}
+.ticketSuccess span { color: #64748b; }
+
+/* ── Responsive ──────────────────────────── */
+@media (max-width: 768px) {
+  .main {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+  .chatPanel { min-height: 60vh; }
+  .controls  { flex-direction: row; flex-wrap: wrap; overflow: visible; }
+  .voiceCard, .productsCard, .langCard, .ticketBanner { flex: 1 1 260px; }
+}
