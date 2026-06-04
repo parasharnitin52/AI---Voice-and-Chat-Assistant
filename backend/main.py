@@ -1,9 +1,14 @@
 """
-Customer Support Voice Agent — FastAPI Backend
-ElectroServ | AC · Washing Machine · Microwave
+Text-to-Speech (Pipeline) integration
+
+Customer Support Voice Agent - FastAPI Backend
+ElectroServ | AC - Washing Machine - Microwave
 """
 import uuid
+from fastapi.responses import StreamingResponse
+from tts import synthesize
 from datetime import datetime
+import io
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
@@ -77,7 +82,7 @@ async def transcribe(
 
     audio_bytes = await audio.read()
     print(f"[DEBUG] Received audio file: {audio.filename}, Content-Type: {audio.content_type}, Size: {len(audio_bytes)} bytes, Language hint: {language}")
-    if len(audio_bytes) < 3000:
+    if len(audio_bytes) < 800:
         raise HTTPException(400, "Audio is too short. Please hold the mic and speak for at least one second.")
 
     try:
@@ -307,6 +312,21 @@ def list_knowledge(
         query = query.filter(KnowledgeItem.product == product)
     return query.all()
 
+
+# -----------------------------------------
+#  GET /api/tts  -- Text -> Speech (Edge TTS)
+# -----------------------------------------
+@app.get("/api/tts")
+async def tts_endpoint(text: str, language: str = "english"):
+    """Generate speech audio for the given text using Microsoft Edge TTS.
+    Returns a streaming MP3 response.
+    """
+    mp3_bytes = synthesize(text, language)
+    return StreamingResponse(
+        io.BytesIO(mp3_bytes),
+        media_type="audio/mpeg",
+        headers={"Cache-Control": "no-store"},
+    )
 
 if __name__ == "__main__":
     import uvicorn

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback, useRef, useEffect } from "react";
+import React, { useState, useCallback, useRef } from "react";
 import VoiceButton from "../components/VoiceButton";
 import ChatHistory from "../components/ChatHistory";
 import TicketModal from "../components/TicketModal";
@@ -32,8 +32,7 @@ export default function HomePage() {
   const [ticketSuccess, setTicketSuccess] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
-  const speechRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const handleProductSelect = (productKey: string) => {
     setProductDetected(productKey);
@@ -46,70 +45,63 @@ export default function HomePage() {
     setManualLanguage(lang);
   };
 
-  useEffect(() => {
-    if (typeof window === "undefined" || !window.speechSynthesis) return;
+  // ── Text-to-speech (Pipeline TTS via backend) ──────────────────
+  const speak = useCallback(async (text: string, _lang: string) => {
+    try {
+      setIsSpeaking(true);
+      setStatus("speaking");
+      setStatusText("Speaking\u2026");
 
-    const loadVoices = () => {
-      setAvailableVoices(window.speechSynthesis.getVoices());
-    };
+      // Call backend pipeline TTS endpoint
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const res = await fetch(
+        `${apiUrl}/api/tts?text=${encodeURIComponent(text)}`
+      );
 
-    loadVoices();
-    window.speechSynthesis.onvoiceschanged = loadVoices;
+      if (!res.ok) {
+        console.error("TTS request failed:", res.status);
+        setIsSpeaking(false);
+        setStatus("idle");
+        setStatusText("");
+        return;
+      }
 
-    return () => {
-      window.speechSynthesis.onvoiceschanged = null;
-    };
+      const blob = await res.blob();
+      const audioUrl = URL.createObjectURL(blob);
+      const audio = new Audio(audioUrl);
+      audioRef.current = audio;
+
+      audio.onended = () => {
+        URL.revokeObjectURL(audioUrl);
+        audioRef.current = null;
+        setIsSpeaking(false);
+        setStatus("idle");
+        setStatusText("");
+      };
+
+      audio.onerror = () => {
+        URL.revokeObjectURL(audioUrl);
+        audioRef.current = null;
+        setIsSpeaking(false);
+        setStatus("idle");
+        setStatusText("");
+      };
+
+      await audio.play();
+    } catch (err) {
+      console.error("Pipeline TTS error:", err);
+      setIsSpeaking(false);
+      setStatus("idle");
+      setStatusText("");
+    }
   }, []);
 
-  const pickVoice = useCallback((lang: string) => {
-    const byLang = (prefix: string) =>
-      availableVoices.filter((voice) => voice.lang.toLowerCase().startsWith(prefix));
-    const preferNatural = (voices: SpeechSynthesisVoice[]) =>
-      voices.find((voice) => /google|microsoft|natural|online|heera|ravi/i.test(voice.name))
-      || voices.find((voice) => voice.localService)
-      || voices[0];
-
-    if (lang === "hindi") {
-      return preferNatural(byLang("hi"));
-    }
-
-    if (lang === "hinglish") {
-      return preferNatural(byLang("en-in")) || preferNatural(byLang("hi")) || preferNatural(byLang("en"));
-    }
-
-    return preferNatural(byLang("en-in")) || preferNatural(byLang("en-us")) || preferNatural(byLang("en"));
-  }, [availableVoices]);
-
-  // ── Text-to-speech ──────────────────────────────────────────────
-  const speak = useCallback((text: string, lang: string) => {
-    if (typeof window === "undefined" || !window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
-
-    const utter = new SpeechSynthesisUtterance(text);
-    utter.rate = 0.9;
-    utter.pitch = 1;
-    utter.volume = 1;
-
-    if (lang === "hindi") {
-      utter.lang = "hi-IN";
-    } else if (lang === "hinglish") {
-      utter.lang = "en-IN";
-    } else {
-      utter.lang = "en-IN";
-    }
-    const voice = pickVoice(lang);
-    if (voice) utter.voice = voice;
-
-    utter.onstart = () => { setIsSpeaking(true); setStatus("speaking"); setStatusText("Speaking…"); };
-    utter.onend = () => { setIsSpeaking(false); setStatus("idle"); setStatusText(""); };
-    utter.onerror = () => { setIsSpeaking(false); setStatus("idle"); setStatusText(""); };
-
-    speechRef.current = utter;
-    window.speechSynthesis.speak(utter);
-  }, [pickVoice]);
-
   const stopSpeaking = () => {
-    window.speechSynthesis?.cancel();
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      audioRef.current = null;
+    }
     setIsSpeaking(false);
     setStatus("idle");
     setStatusText("");
@@ -121,7 +113,7 @@ export default function HomePage() {
     setTranscript("");
 
     // Prevent sending tiny/empty files (e.g. accidental clicks)
-    if (blob.size < 3000) {
+    if (blob.size < 800) {
       setStatus("idle");
       setErrorMsg("Please hold the button for at least one second and speak clearly.");
       return;
@@ -130,7 +122,7 @@ export default function HomePage() {
     try {
       // Step 1: Transcribe
       setStatus("transcribing");
-      setStatusText("Transcribing your voice…");
+      setStatusText("Transcribing your voice\u2026");
       const tResult = await transcribeAudio(blob, manualLanguage || undefined);
       const userText = tResult.transcript;
 
@@ -145,7 +137,7 @@ export default function HomePage() {
 
       // Step 2: Chat
       setStatus("thinking");
-      setStatusText("AI is thinking…");
+      setStatusText("AI is thinking\u2026");
       const chatResult = await sendChat(
         sessionId,
         userText,
@@ -183,7 +175,7 @@ export default function HomePage() {
 
     try {
       setStatus("thinking");
-      setStatusText("AI is thinking…");
+      setStatusText("AI is thinking\u2026");
       const chatResult = await sendChat(
         sessionId,
         msg,
@@ -264,7 +256,7 @@ export default function HomePage() {
           <div className={styles.textBar}>
             <input
               className={`${styles.textInput} input`}
-              placeholder="Or type your message here…"
+              placeholder="Or type your message here\u2026"
               value={textInput}
               onChange={(e) => setTextInput(e.target.value)}
               onKeyDown={handleKeyDown}

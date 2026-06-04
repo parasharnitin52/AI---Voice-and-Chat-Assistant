@@ -19,8 +19,8 @@ def get_groq_client() -> Groq:
 # ─────────────────────────────────────────────
 #  Speech-to-Text  (Groq Whisper)
 # ─────────────────────────────────────────────
-DISALLOWED_TRANSCRIPT_SCRIPT_RE = re.compile(
-    r"[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF"
+NON_ROMAN_TRANSCRIPT_RE = re.compile(
+    r"[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\u0900-\u097F"
     r"\u0980-\u0C7F\u0D00-\u0D7F]"
 )
 
@@ -31,16 +31,11 @@ def normalize_transcript_script(
     detected_language: str | None = None,
 ) -> str:
     """
-    Keep transcripts in Roman letters or Hindi Devanagari.
-    Whisper can sometimes return Hindi/Hinglish in Urdu or another Indic script.
+    Keep displayed voice transcripts in Roman letters.
+    Hindi speech is shown as Hinglish, and English stays English.
     """
-    if not transcript or not DISALLOWED_TRANSCRIPT_SCRIPT_RE.search(transcript):
+    if not transcript or not NON_ROMAN_TRANSCRIPT_RE.search(transcript):
         return transcript
-
-    normalized_hint = (language_hint or detected_language or "").strip().lower()
-    target_script = "Hindi Devanagari" if normalized_hint in {"hi", "hindi", "ur", "urdu"} else "Roman English alphabet"
-    if not normalized_hint:
-        target_script = "Hindi Devanagari if the sentence is Hindi, otherwise Roman English alphabet"
 
     client = get_groq_client()
     response = client.chat.completions.create(
@@ -49,12 +44,11 @@ def normalize_transcript_script(
             {
                 "role": "system",
                 "content": (
-                    "You rewrite speech transcripts only. Convert the input into "
-                    f"{target_script}. Never use Urdu, Arabic, Persian, Tamil, "
-                    "Bengali, Telugu, Kannada, Malayalam, or any script other "
-                    "than Roman English letters or Hindi Devanagari. Preserve the "
-                    "speaker's meaning. Do not answer the user. Return only the "
-                    "rewritten transcript."
+                    "You rewrite speech transcripts only. Convert the input into Roman letters. "
+                    "If it is Hindi, write natural Hinglish such as 'mera AC thanda nahi kar raha'. "
+                    "If it is English, keep it in English. Never use Devanagari, Urdu, Arabic, "
+                    "Persian, Tamil, Bengali, Telugu, Kannada, Malayalam, or any non-Roman script. "
+                    "Preserve the speaker's meaning. Do not answer the user. Return only the rewritten transcript."
                 ),
             },
             {"role": "user", "content": transcript},
@@ -85,11 +79,11 @@ def transcribe_audio(
         "model": settings.whisper_model,
         "response_format": "verbose_json",
         "prompt": (
-            "Transcribe exactly what the speaker says. Preserve Hindi in "
-            "Devanagari when spoken in Hindi. Preserve Hinglish as Romanized "
-            "Hindi mixed with English. Use only Hindi Devanagari or Roman "
-            "English letters. Never use Urdu, Arabic, or Persian script. "
-            "Do not translate to English."
+            "Transcribe exactly what the speaker says. Use Roman English letters only. "
+            "If the speaker uses Hindi, write it as natural Hinglish in Roman letters. "
+            "If the speaker uses English, keep it in English. Never use Devanagari, "
+            "Urdu, Arabic, Persian, or any non-Roman script. Do not translate Hindi "
+            "meaning into full English."
         ),
     }
 
