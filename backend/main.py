@@ -77,7 +77,7 @@ async def transcribe(
 
     audio_bytes = await audio.read()
     print(f"[DEBUG] Received audio file: {audio.filename}, Content-Type: {audio.content_type}, Size: {len(audio_bytes)} bytes, Language hint: {language}")
-    if len(audio_bytes) < 3000:
+    if len(audio_bytes) < 800:
         raise HTTPException(400, "Audio is too short. Please hold the mic and speak for at least one second.")
 
     try:

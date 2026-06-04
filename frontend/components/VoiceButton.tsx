@@ -9,7 +9,7 @@ interface Props {
   isProcessing?: boolean;
 }
 
-const MIN_RECORDING_MS = 900;
+const MIN_RECORDING_MS = 700;
 
 function getSupportedMimeType(): string {
   const candidates = [
@@ -60,13 +60,15 @@ export default function VoiceButton({ onAudioReady, disabled, isProcessing }: Pr
         const durationMs = Date.now() - recordingStartedAtRef.current;
         if (durationMs >= MIN_RECORDING_MS && blob.size > 0) {
           onAudioReady(blob);
+        } else if (blob.size > 0) {
+          onAudioReady(blob);
         }
         stream.getTracks().forEach((t) => t.stop());
         streamRef.current = null;
         mediaRecorderRef.current = null;
       };
 
-      recorder.start(250);
+      recorder.start();
       mediaRecorderRef.current = recorder;
       setIsRecording(true);
     } catch (err) {
@@ -84,7 +86,6 @@ export default function VoiceButton({ onAudioReady, disabled, isProcessing }: Pr
       const elapsedMs = Date.now() - recordingStartedAtRef.current;
       const stop = () => {
         if (recorder.state === "recording") {
-          recorder.requestData();
           recorder.stop();
         }
       };

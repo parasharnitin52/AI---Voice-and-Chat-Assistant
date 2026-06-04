@@ -34,6 +34,7 @@ export default function HomePage() {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
   const speechRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const speechQueueRef = useRef<SpeechSynthesisUtterance[]>([]);
 
   const handleProductSelect = (productKey: string) => {
     setProductDetected(productKey);
@@ -65,7 +66,9 @@ export default function HomePage() {
     const byLang = (prefix: string) =>
       availableVoices.filter((voice) => voice.lang.toLowerCase().startsWith(prefix));
     const preferNatural = (voices: SpeechSynthesisVoice[]) =>
-      voices.find((voice) => /google|microsoft|natural|online|heera|ravi/i.test(voice.name))
+      voices.find((voice) => /natural|online|neural|aria|jenny|guy|heera|ravi|google|microsoft/i.test(voice.name))
+      || voices.find((voice) => /microsoft|google/i.test(voice.name))
+      || voices.find((voice) => !voice.localService)
       || voices.find((voice) => voice.localService)
       || voices[0];
 
@@ -84,32 +87,57 @@ export default function HomePage() {
   const speak = useCallback((text: string, lang: string) => {
     if (typeof window === "undefined" || !window.speechSynthesis) return;
     window.speechSynthesis.cancel();
+    speechQueueRef.current = [];
 
-    const utter = new SpeechSynthesisUtterance(text);
-    utter.rate = 0.9;
-    utter.pitch = 1;
-    utter.volume = 1;
-
-    if (lang === "hindi") {
-      utter.lang = "hi-IN";
-    } else if (lang === "hinglish") {
-      utter.lang = "en-IN";
-    } else {
-      utter.lang = "en-IN";
-    }
+    const chunks = text
+      .replace(/\s+/g, " ")
+      .match(/[^.!?।]+[.!?।]?/g)
+      ?.map((chunk) => chunk.trim())
+      .filter(Boolean) || [text];
     const voice = pickVoice(lang);
-    if (voice) utter.voice = voice;
 
+    const speakChunk = (index: number) => {
+      const chunk = chunks[index];
+      if (!chunk) {
+        setIsSpeaking(false);
+        setStatus("idle");
+        setStatusText("");
+        return;
+      }
+
+      const utter = new SpeechSynthesisUtterance(chunk);
+      utter.lang = lang === "hindi" ? "hi-IN" : "en-IN";
+      utter.rate = lang === "hindi" ? 0.86 : 0.88;
+      utter.pitch = 0.98;
+      utter.volume = 1;
+      if (voice) utter.voice = voice;
+
+      utter.onstart = () => {
+        setIsSpeaking(true);
+        setStatus("speaking");
+        setStatusText("Speaking...");
+      };
+      utter.onend = () => window.setTimeout(() => speakChunk(index + 1), 120);
+      utter.onerror = () => {
+        setIsSpeaking(false);
+        setStatus("idle");
+        setStatusText("");
+      };
+
+      speechRef.current = utter;
+      speechQueueRef.current[index] = utter;
+      window.speechSynthesis.speak(utter);
+    };
+
+    const utter = new SpeechSynthesisUtterance("");
+    speakChunk(0);
     utter.onstart = () => { setIsSpeaking(true); setStatus("speaking"); setStatusText("Speaking…"); };
-    utter.onend = () => { setIsSpeaking(false); setStatus("idle"); setStatusText(""); };
-    utter.onerror = () => { setIsSpeaking(false); setStatus("idle"); setStatusText(""); };
 
-    speechRef.current = utter;
-    window.speechSynthesis.speak(utter);
   }, [pickVoice]);
 
   const stopSpeaking = () => {
     window.speechSynthesis?.cancel();
+    speechQueueRef.current = [];
     setIsSpeaking(false);
     setStatus("idle");
     setStatusText("");
@@ -121,7 +149,7 @@ export default function HomePage() {
     setTranscript("");
 
     // Prevent sending tiny/empty files (e.g. accidental clicks)
-    if (blob.size < 3000) {
+    if (blob.size < 800) {
       setStatus("idle");
       setErrorMsg("Please hold the button for at least one second and speak clearly.");
       return;
