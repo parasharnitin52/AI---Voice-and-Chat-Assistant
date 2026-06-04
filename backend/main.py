@@ -1,9 +1,14 @@
 """
-Customer Support Voice Agent — FastAPI Backend
-ElectroServ | AC · Washing Machine · Microwave
+Text-to-Speech (Pipeline) integration
+
+Customer Support Voice Agent - FastAPI Backend
+ElectroServ | AC - Washing Machine - Microwave
 """
 import uuid
+from fastapi.responses import StreamingResponse
+from tts import synthesize
 from datetime import datetime
+import io
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
@@ -307,6 +312,21 @@ def list_knowledge(
         query = query.filter(KnowledgeItem.product == product)
     return query.all()
 
+
+# -----------------------------------------
+#  GET /api/tts  -- Text -> Speech (Edge TTS)
+# -----------------------------------------
+@app.get("/api/tts")
+async def tts_endpoint(text: str, language: str = "english"):
+    """Generate speech audio for the given text using Microsoft Edge TTS.
+    Returns a streaming MP3 response.
+    """
+    mp3_bytes = synthesize(text, language)
+    return StreamingResponse(
+        io.BytesIO(mp3_bytes),
+        media_type="audio/mpeg",
+        headers={"Cache-Control": "no-store"},
+    )
 
 if __name__ == "__main__":
     import uvicorn
