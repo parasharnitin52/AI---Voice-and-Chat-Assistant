@@ -8,9 +8,9 @@ import edge_tts
 
 # Default voices per language
 VOICE_MAP = {
-    "english": "en-US-AriaNeural",
-    "hindi": "hi-IN-SwaraNeural",
-    "hinglish": "en-IN-NeerjaNeural",  # Indian English voice works great for Hinglish
+    "english": "en-IN-NeerjaNeural",    # Indian English female
+    "hindi": "hi-IN-SwaraNeural",       # Hindi female
+    "hinglish": "hi-IN-SwaraNeural",    # Use Hindi voice for Hinglish so it reads romanized Hindi naturally
 }
 
 
